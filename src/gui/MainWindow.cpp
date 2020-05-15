@@ -506,19 +506,41 @@ MainWindow::MainWindow()
                                                MessageWidget::Error);
     }
 
+#if defined(KEEPASSXC_BUILD_TYPE_SNAPSHOT) || defined(KEEPASSXC_BUILD_TYPE_PRE_RELEASE)
+    auto* hidePreRelWarn = new QAction(tr("Don't show again for this version"), m_ui->globalMessageWidget);
+    m_ui->globalMessageWidget->addAction(hidePreRelWarn);
+    auto hidePreRelWarnConn = QSharedPointer<QMetaObject::Connection>::create();
+    *hidePreRelWarnConn = connect(m_ui->globalMessageWidget,
+                                  &KMessageWidget::hideAnimationFinished,
+                                  [this, hidePreRelWarn, hidePreRelWarnConn]() {
+                                      m_ui->globalMessageWidget->removeAction(hidePreRelWarn);
+                                      disconnect(*hidePreRelWarnConn);
+                                      hidePreRelWarn->deleteLater();
+                                  });
+    connect(hidePreRelWarn, &QAction::triggered, [this, hidePreRelWarnConn]() {
+        m_ui->globalMessageWidget->animatedHide();
+        config()->set(Config::Messages_HidePreReleaseWarning, KEEPASSXC_VERSION);
+    });
+#endif
 #if defined(KEEPASSXC_BUILD_TYPE_SNAPSHOT)
-    m_ui->globalMessageWidget->showMessage(
-        tr("WARNING: You are using an unstable build of KeePassXC!\n"
-           "There is a high risk of corruption, maintain a backup of your databases.\n"
-           "This version is not meant for production use."),
-        MessageWidget::Warning,
-        -1);
+    if (config()->get(Config::Messages_HidePreReleaseWarning) != KEEPASSXC_VERSION) {
+        m_ui->globalMessageWidget->addAction(hidePreRelWarn);
+        m_ui->globalMessageWidget->showMessage(
+            tr("WARNING: You are using an unstable build of KeePassXC!\n"
+               "There is a high risk of corruption, maintain a backup of your databases.\n"
+               "This version is not meant for production use."),
+            MessageWidget::Warning,
+            -1);
+    }
 #elif defined(KEEPASSXC_BUILD_TYPE_PRE_RELEASE)
-    m_ui->globalMessageWidget->showMessage(
-        tr("NOTE: You are using a pre-release version of KeePassXC!\n"
-           "Expect some bugs and minor issues, this version is not meant for production use."),
-        MessageWidget::Information,
-        15000);
+    if (config()->get(Config::Messages_HidePreReleaseWarning) != KEEPASSXC_VERSION) {
+        m_ui->globalMessageWidget->addAction(hidePreRelWarn);
+        m_ui->globalMessageWidget->showMessage(
+            tr("NOTE: You are using a pre-release version of KeePassXC!\n"
+               "Expect some bugs and minor issues, this version is not meant for production use."),
+            MessageWidget::Information,
+            -1);
+    }
 #elif (QT_VERSION >= QT_VERSION_CHECK(5, 5, 0) && QT_VERSION < QT_VERSION_CHECK(5, 6, 0))
     if (!config()->get(Config::Messages_Qt55CompatibilityWarning).toBool()) {
         m_ui->globalMessageWidget->showMessage(
